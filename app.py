@@ -56,7 +56,7 @@ st.markdown("""
         padding-top: 1rem;
     }
 </style>
-""", unsafe_allow_dict=True)
+""", unsafe_allow_html=True)
 
 # Sidebar Controls
 st.sidebar.title("✈️ FinPilot Agent")
@@ -408,4 +408,4 @@ st.markdown("""
 <div class="disclaimer-box">
     <strong>⚖️ FinPilot Decision-Support Boundary:</strong> FinPilot provides data-driven decision support and financial pattern analysis based strictly on ingested data. FinPilot explicitly does not provide certified financial, investment, accounting, or legal tax advice.
 </div>
-""", unsafe_allow_dict=True)
+""", unsafe_allow_html=True)
