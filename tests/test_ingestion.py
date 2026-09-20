@@ -77,3 +77,18 @@ def test_pdf_parser_demo_statement():
         assert txs[0].amount == 2500.00
         assert txs[1].amount == -1450.00
 
+
+def test_background_document_processor():
+    import os
+    from finpilot.ingestion.processor import BackgroundDocumentProcessor
+    pdf_path = "Demo Bank Statement (1).pdf"
+    if os.path.exists(pdf_path):
+        proc = BackgroundDocumentProcessor()
+        res = proc.process_document(pdf_path, filename=pdf_path)
+        stats = res["stats"]
+        assert stats.status == "SUCCESS"
+        assert stats.total_transactions == 15
+        assert stats.gross_income == 5320.00
+        assert stats.parsing_confidence_pct > 90.0
+
+

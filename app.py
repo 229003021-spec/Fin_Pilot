@@ -7,6 +7,7 @@ from finpilot.demo_data import seed_demo_database, export_sample_files
 from finpilot.ingestion.csv_parser import CSVStatementParser
 from finpilot.ingestion.json_parser import JSONStatementParser
 from finpilot.ingestion.pdf_parser import PDFStatementParser
+from finpilot.ingestion.processor import BackgroundDocumentProcessor
 from finpilot.analytics.subscriptions import SubscriptionTracker
 from finpilot.analytics.anomalies import AnomalyDetector
 from finpilot.analytics.committed_spend import CommittedSpendCalculator
@@ -71,28 +72,28 @@ uploaded_file = st.sidebar.file_uploader(
     help="Supports CSV statements, JSON exports, and PDF bank/utility statements."
 )
 
+bg_processor = BackgroundDocumentProcessor()
+
 if uploaded_file is not None:
     filename = uploaded_file.name
-    try:
-        if filename.endswith(".csv"):
-            parser = CSVStatementParser()
-            txs = parser.parse(uploaded_file, filename=filename)
-        elif filename.endswith(".json"):
-            parser = JSONStatementParser()
-            txs = parser.parse(uploaded_file, filename=filename)
-        elif filename.endswith(".pdf"):
-            parser = PDFStatementParser()
-            txs = parser.parse(uploaded_file, filename=filename)
-        else:
-            txs = []
+    res = bg_processor.process_document(uploaded_file, filename=filename)
+    txs = res["transactions"]
+    stats = res["stats"]
 
-        if txs:
-            db.insert_transactions(txs)
-            st.sidebar.success(f"Successfully ingested {len(txs)} transactions from {filename}!")
-        else:
-            st.sidebar.warning(f"No valid transaction rows found in {filename}.")
-    except Exception as e:
-        st.sidebar.error(f"Error parsing file {filename}: {str(e)}")
+    if txs:
+        db.insert_transactions(txs)
+        st.sidebar.success(f"Successfully processed {stats.total_transactions} records!")
+        with st.sidebar.expander("📊 Document Analytics & Health Stats", expanded=True):
+            st.markdown(f"**Format**: `{stats.file_format}` | **Confidence**: `{stats.parsing_confidence_pct}%`")
+            st.markdown(f"**Date Range**: `{stats.date_range_start}` to `{stats.date_range_end}`")
+            st.markdown(f"**Gross Inflow**: +${stats.gross_income:,.2f}")
+            st.markdown(f"**Gross Outflow**: -${stats.gross_expenses:,.2f}")
+            st.markdown(f"**Net Impact**: ${stats.net_cash_flow:,.2f}")
+            st.markdown(f"**Top Category**: {stats.top_category} (${stats.top_category_amount:,.2f})")
+            st.markdown(f"**Top Vendor**: {stats.top_vendor} (${stats.top_vendor_amount:,.2f})")
+            st.markdown(f"**Detected**: 🔄 {stats.subscriptions_detected} Subs | 🚩 {stats.anomalies_detected} Outliers")
+    else:
+        st.sidebar.warning(f"No valid transaction rows found in {filename}.")
 
 st.sidebar.markdown("---")
 col_s1, col_s2 = st.sidebar.columns(2)
