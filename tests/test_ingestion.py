@@ -170,5 +170,19 @@ def test_ai_agent_parser():
     assert txs[2].category == TransactionCategory.SUBSCRIPTIONS.value
 
 
+def test_raw_bytes_pdf_processing():
+    import os
+    from finpilot.ingestion.processor import BackgroundDocumentProcessor
+    pdf_path = "Demo Bank Statement.pdf"
+    if os.path.exists(pdf_path):
+        with open(pdf_path, "rb") as f:
+            raw_bytes = f.read()
+        proc = BackgroundDocumentProcessor()
+        res = proc.process_document(raw_bytes, filename=pdf_path)
+        assert res["stats"].status == "SUCCESS"
+        assert res["stats"].total_transactions == 15
+
+
+
 
 

@@ -93,7 +93,8 @@ class BackgroundDocumentProcessor:
                     file_source.seek(0)
 
                 if ext == ".pdf":
-                    reader = PdfReader(file_source)
+                    pdf_stream = io.BytesIO(file_source) if isinstance(file_source, bytes) else file_source
+                    reader = PdfReader(pdf_stream)
                     for page in reader.pages:
                         t = page.extract_text()
                         if t:

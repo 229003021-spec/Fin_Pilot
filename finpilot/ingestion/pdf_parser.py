@@ -1,3 +1,5 @@
+import os
+import io
 import re
 from typing import List, Union, BinaryIO
 from pypdf import PdfReader
@@ -31,8 +33,13 @@ class PDFStatementParser:
     def __init__(self, categorizer: HybridCategorizer = None):
         self.categorizer = categorizer or HybridCategorizer()
 
-    def parse(self, file_source: Union[str, BinaryIO], filename: str = "statement.pdf") -> List[Transaction]:
+    def parse(self, file_source: Union[str, BinaryIO, bytes], filename: str = "statement.pdf") -> List[Transaction]:
         try:
+            if isinstance(file_source, bytes):
+                file_source = io.BytesIO(file_source)
+            elif isinstance(file_source, str) and os.path.exists(file_source):
+                with open(file_source, "rb") as f:
+                    file_source = io.BytesIO(f.read())
             reader = PdfReader(file_source)
             full_text = ""
             for page in reader.pages:
