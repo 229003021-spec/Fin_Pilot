@@ -2,11 +2,11 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-FF4B4B.svg)](https://streamlit.io/)
+[![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-FF4B4B.svg)](https://finpilot-devengers-sreekanth.streamlit.app/)
 
-**FinPilot** is an AI-powered personal finance decision-support agent designed to help individuals gain clarity over everyday finances. Rather than acting as a traditional banking dashboard or investment advisory platform, FinPilot bridges the gap between raw transaction records and actionable financial decision-making.
+**FinPilot** is a deterministic, AI-pattern-assisted personal finance decision-support agent designed to help individuals gain clarity over everyday finances. Rather than acting as a traditional banking dashboard or investment advisory platform, FinPilot bridges the gap between raw transaction records and actionable financial decision-making.
 
-FinPilot ingests, standardizes, and analyzes multi-source financial data to explain where money is going, anticipate upcoming obligations, flag unusual spending patterns, and quantify how daily decisions impact personal financial goals.
+🌐 **Live Demo**: [https://finpilot-devengers-sreekanth.streamlit.app/](https://finpilot-devengers-sreekanth.streamlit.app/)
 
 ---
 
@@ -15,7 +15,7 @@ FinPilot ingests, standardizes, and analyzes multi-source financial data to expl
 ### 1. Data Ingestion & Intelligent Categorization
 - **Multi-Format Ingestion**: Parsers for CSV, JSON, and PDF bank/credit card statements and utility bills.
 - **Schema Normalizer**: Standardizes raw vendor descriptions, dates into ISO format (`YYYY-MM-DD`), and normalizes sign conventions (expenses negative, income positive).
-- **Hybrid Categorization Engine**: Rule-based keyword/regex matching combined with context-aware fallbacks (`SQUARE * CAFE` $\rightarrow$ Dining Out, `NETFLIX` $\rightarrow$ Subscriptions, `CONED` $\rightarrow$ Utilities).
+- **Hybrid Categorization Engine**: Deterministic regex rule matching combined with context-aware fallback inference (`SQUARE * CAFE` $\rightarrow$ Dining Out, `NETFLIX` $\rightarrow$ Subscriptions, `CONED` $\rightarrow$ Utilities).
 
 ### 2. Pattern Recognition & Automated Detection
 - **Subscription & Recurring Obligation Tracker**: Detects recurring transactions using interval frequencies (~30-day or annual cycles) and low price variance ($\le 5\%$).
@@ -38,10 +38,10 @@ FinPilot ingests, standardizes, and analyzes multi-source financial data to expl
 ```
 +-----------------------------------------------------------------------------------+
 |                                 USER INTERFACE                                    |
-|                             Streamlit Dashboard UI                                |
+|                            Streamlit Dashboard UI                                 |
 +------------------------------------------+----------------------------------------+
                                            |
-                                 REST API / In-Memory Call
+                                  In-Memory Method Calls
                                            |
                                            v
 +-----------------------------------------------------------------------------------+
@@ -55,8 +55,8 @@ FinPilot ingests, standardizes, and analyzes multi-source financial data to expl
 |            |                         ^                            ^               |
 |            v                         |                            |               |
 |  +-----------------------------------+----------------------------+------------+  |
-|  |                       LLM Conversational Router                             |  |
-|  |             (Natural Language Queries, Safe DuckDB SQL Execution)           |  |
+|  |                         Structured Query Router                             |  |
+|  |              (Natural Language Intent -> Safe DuckDB SQL Execution)         |  |
 |  +-----------------------------------------------------------------------------+  |
 +------------------------------------------+----------------------------------------+
                                            |
@@ -79,7 +79,7 @@ FinPilot ingests, standardizes, and analyzes multi-source financial data to expl
 
 2. **Install Dependencies**:
    ```bash
-   pip install -r requirements.txt
+   pip install -r requirements-dev.txt
    ```
 
 3. **Run Interactive Dashboard**:
@@ -94,14 +94,14 @@ FinPilot ingests, standardizes, and analyzes multi-source financial data to expl
 
 ---
 
-## ⚖️ Decision-Support Boundary & Guardrails
+## ⚠️ Known Limitations & Boundaries
 
-- **Deterministic Calculation First**: All sums, variances, standard deviations, and goal timelines are computed via DuckDB SQL and Python code execution prior to response presentation.
-- **Decision-Support Boundary**: FinPilot explicitly clarifies that it provides data-driven decision support and not certified financial, investment, accounting, or legal tax advice.
-- **Data Privacy**: Raw account credentials and full sensitive account identifiers are masked or omitted from agent outputs using privacy sanitization rules.
+- **In-Memory Data Storage**: Data lives in DuckDB session memory. Refreshing or resetting the app session clears temporary uploaded statements.
+- **Text-Based PDF Extraction**: PDF parsing uses text layer extraction (`pypdf`). Scanned image-only PDFs without text layers require pre-OCR processing.
+- **Decision-Support Boundary**: FinPilot provides data-driven decision support and financial pattern analysis based strictly on ingested data. FinPilot explicitly does not provide certified financial, investment, accounting, or legal tax advice.
 
 ---
 
 ## 📄 License
 
-Distributed under the MIT License.
+Distributed under the MIT License. See `LICENSE` for more information.
