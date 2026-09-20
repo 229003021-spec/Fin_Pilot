@@ -49,6 +49,8 @@ class PDFStatementParser:
         return self._extract_transactions_from_text(full_text, filename)
 
     def _extract_transactions_from_text(self, text: str, filename: str) -> List[Transaction]:
+        if not text.strip():
+            raise ValueError("No extractable text found in PDF. Scanned or image-only PDFs are not supported.")
         lines = text.split("\n")
         transactions = []
 

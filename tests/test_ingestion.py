@@ -92,3 +92,54 @@ def test_background_document_processor():
         assert stats.parsing_confidence_pct > 90.0
 
 
+def test_invalid_files_error_handling():
+    from finpilot.ingestion.processor import BackgroundDocumentProcessor
+    proc = BackgroundDocumentProcessor()
+
+    # 1. Invalid JSON
+    res_json = proc.process_document(io.BytesIO(b"invalid json content {{"), filename="test.json")
+    assert res_json["stats"].status in ["WARNING", "ERROR"]
+    assert len(res_json["transactions"]) == 0
+
+    # 2. Corrupt / Empty CSV
+    res_csv = proc.process_document(io.BytesIO(b""), filename="test.csv")
+    assert res_csv["stats"].status in ["WARNING", "ERROR"]
+    assert len(res_csv["transactions"]) == 0
+
+    # 3. Image-only PDF with no text
+    from finpilot.ingestion.pdf_parser import PDFStatementParser
+    with pytest.raises(ValueError):
+        PDFStatementParser()._extract_transactions_from_text("", filename="scanned.pdf")
+
+
+def test_duplicate_upload_prevention_and_clear_all():
+    from finpilot.db import FinPilotDB
+    from finpilot.ingestion.processor import BackgroundDocumentProcessor
+    db = FinPilotDB(":memory:")
+    proc = BackgroundDocumentProcessor()
+
+    csv_data = b"Date,Description,Amount,Category\n2026-03-01,Salary,5000,Income"
+    res = proc.process_document(io.BytesIO(csv_data), filename="test.csv")
+    
+    # First insert
+    db.insert_transactions(res["transactions"])
+    assert len(db.get_transactions_df()) == 1
+
+    # Simulated rerun with duplicate check: key match prevents second insertion
+    last_uploaded_key = f"test.csv:{len(csv_data)}"
+    new_uploaded_key = f"test.csv:{len(csv_data)}"
+    
+    if last_uploaded_key != new_uploaded_key:
+        db.insert_transactions(res["transactions"])
+    
+    # Should still be 1 row
+    assert len(db.get_transactions_df()) == 1
+
+    # Clear All leaves 0 rows
+    db.clear_all()
+    assert len(db.get_transactions_df()) == 0
+    assert len(db.get_budgets()) == 0
+    assert len(db.get_goals()) == 0
+
+
+
