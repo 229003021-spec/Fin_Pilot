@@ -78,19 +78,41 @@ class FinPilotDB:
         if not budget_list:
             return
         for b in budget_list:
-            self.conn.execute("""
-                INSERT OR REPLACE INTO budgets (category, allocated_limit, period)
-                VALUES (?, ?, ?)
-            """, [b.category, b.allocated_limit, b.period])
+            self.upsert_budget(b)
+
+    def upsert_budget(self, budget: Budget):
+        if not budget.category or not budget.category.strip():
+            raise ValueError("Budget category cannot be empty.")
+        if budget.allocated_limit < 0:
+            raise ValueError("Budget allocated limit cannot be negative.")
+        self.conn.execute("""
+            INSERT OR REPLACE INTO budgets (category, allocated_limit, period)
+            VALUES (?, ?, ?)
+        """, [budget.category.strip(), float(budget.allocated_limit), budget.period])
+
+    def delete_budget(self, category: str):
+        self.conn.execute("DELETE FROM budgets WHERE category = ?", [category.strip()])
 
     def insert_goals(self, goal_list: List[Goal]):
         if not goal_list:
             return
         for g in goal_list:
-            self.conn.execute("""
-                INSERT OR REPLACE INTO goals (goal_name, target_amount, current_amount, target_date)
-                VALUES (?, ?, ?, ?)
-            """, [g.goal_name, g.target_amount, g.current_amount, g.target_date])
+            self.add_goal(g)
+
+    def add_goal(self, goal: Goal):
+        if not goal.goal_name or not goal.goal_name.strip():
+            raise ValueError("Goal name cannot be empty.")
+        if goal.target_amount <= 0:
+            raise ValueError("Goal target amount must be greater than 0.")
+        if goal.current_amount < 0:
+            raise ValueError("Goal current amount cannot be negative.")
+        self.conn.execute("""
+            INSERT OR REPLACE INTO goals (goal_name, target_amount, current_amount, target_date)
+            VALUES (?, ?, ?, ?)
+        """, [goal.goal_name.strip(), float(goal.target_amount), float(goal.current_amount), goal.target_date])
+
+    def delete_goal(self, goal_name: str):
+        self.conn.execute("DELETE FROM goals WHERE goal_name = ?", [goal_name.strip()])
 
     def get_all_transactions_df(self) -> pd.DataFrame:
         return self.get_transactions_df()

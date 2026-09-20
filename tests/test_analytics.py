@@ -98,3 +98,43 @@ def test_vendor_search_special_characters():
     query2 = "SQUARE *"
     filtered2 = df[df['raw_vendor'].astype(str).str.contains(query2, case=False, regex=False, na=False)]
     assert len(filtered2) > 0
+
+
+def test_db_crud_budget_and_goal():
+    db = FinPilotDB(":memory:")
+
+    # 1. Budget CRUD & Validation
+    b = Budget(category="Dining Out", allocated_limit=300.0)
+    db.upsert_budget(b)
+    budgets = db.get_budgets()
+    assert len(budgets) == 1
+    assert budgets[0].category == "Dining Out"
+    assert budgets[0].allocated_limit == 300.0
+
+    # Delete budget
+    db.delete_budget("Dining Out")
+    assert len(db.get_budgets()) == 0
+
+    with pytest.raises(ValueError):
+        db.upsert_budget(Budget(category="", allocated_limit=100.0))
+
+    with pytest.raises(ValueError):
+        db.upsert_budget(Budget(category="Shopping", allocated_limit=-50.0))
+
+    # 2. Goal CRUD & Validation
+    g = Goal(goal_name="Vacation", target_amount=2000.0, current_amount=500.0, target_date="2026-12-31")
+    db.add_goal(g)
+    goals = db.get_goals()
+    assert len(goals) == 1
+    assert goals[0].goal_name == "Vacation"
+
+    # Delete goal
+    db.delete_goal("Vacation")
+    assert len(db.get_goals()) == 0
+
+    with pytest.raises(ValueError):
+        db.add_goal(Goal(goal_name="", target_amount=1000.0, current_amount=100.0, target_date=""))
+
+    with pytest.raises(ValueError):
+        db.add_goal(Goal(goal_name="Car", target_amount=0.0, current_amount=0.0, target_date=""))
+
