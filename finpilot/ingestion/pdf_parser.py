@@ -44,7 +44,7 @@ class PDFStatementParser:
             return []
 
         if not full_text.strip():
-            return []
+            raise ValueError("No extractable text found in PDF. Scanned or image-only PDFs are not supported.")
 
         return self._extract_transactions_from_text(full_text, filename)
 

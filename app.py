@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from finpilot.db import FinPilotDB
 from finpilot.demo_data import seed_demo_database, export_sample_files
 from finpilot.ingestion.csv_parser import CSVStatementParser
@@ -25,25 +24,27 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize Session State Database Connection
+# Initialize Session State
 if "db" not in st.session_state:
     st.session_state.db = FinPilotDB(":memory:")
-    # Seed default sample data so application works out-of-the-box
     seed_demo_database(st.session_state.db)
+    # Only export sample files if missing from disk
     export_sample_files(".")
+
+if "uploader_key" not in st.session_state:
+    st.session_state["uploader_key"] = 0
+if "last_uploaded" not in st.session_state:
+    st.session_state["last_uploaded"] = None
+if "last_stats" not in st.session_state:
+    st.session_state["last_stats"] = None
+if "using_demo" not in st.session_state:
+    st.session_state["using_demo"] = True
 
 db = st.session_state.db
 
 # Custom CSS styling
 st.markdown("""
 <style>
-    .metric-card {
-        background-color: #f8f9fa;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        border-left: 4px solid #1E88E5;
-    }
     .disclaimer-box {
         background-color: #fff3cd;
         border-radius: 8px;
@@ -66,48 +67,82 @@ st.sidebar.caption("Personal Finance Decision Support System")
 st.sidebar.markdown("---")
 st.sidebar.subheader("📥 Data Ingestion")
 
+# Mode Badge
+if st.session_state.get("using_demo", True):
+    st.sidebar.info("ℹ️ **Data Mode**: Using demo data")
+else:
+    st.sidebar.success("✅ **Data Mode**: Using your uploaded data")
+
 uploaded_file = st.sidebar.file_uploader(
     "Upload Bank/Credit Statement",
     type=["csv", "json", "pdf"],
+    key=f"file_uploader_{st.session_state['uploader_key']}",
     help="Supports CSV statements, JSON exports, and PDF bank/utility statements."
 )
 
 bg_processor = BackgroundDocumentProcessor()
 
 if uploaded_file is not None:
-    filename = uploaded_file.name
-    res = bg_processor.process_document(uploaded_file, filename=filename)
-    txs = res["transactions"]
-    stats = res["stats"]
+    # Build unique file key to prevent re-processing on rerun
+    file_bytes = uploaded_file.getvalue()
+    file_size = len(file_bytes)
+    file_key = f"{uploaded_file.name}:{file_size}"
 
-    if txs:
-        db.insert_transactions(txs)
-        st.sidebar.success(f"Successfully processed {stats.total_transactions} records!")
-        with st.sidebar.expander("📊 Document Analytics & Health Stats", expanded=True):
-            st.markdown(f"**Format**: `{stats.file_format}` | **Confidence**: `{stats.parsing_confidence_pct}%`")
-            st.markdown(f"**Date Range**: `{stats.date_range_start}` to `{stats.date_range_end}`")
-            st.markdown(f"**Gross Inflow**: +${stats.gross_income:,.2f}")
-            st.markdown(f"**Gross Outflow**: -${stats.gross_expenses:,.2f}")
-            st.markdown(f"**Net Impact**: ${stats.net_cash_flow:,.2f}")
-            st.markdown(f"**Top Category**: {stats.top_category} (${stats.top_category_amount:,.2f})")
-            st.markdown(f"**Top Vendor**: {stats.top_vendor} (${stats.top_vendor_amount:,.2f})")
-            st.markdown(f"**Detected**: 🔄 {stats.subscriptions_detected} Subs | 🚩 {stats.anomalies_detected} Outliers")
-    else:
-        st.sidebar.warning(f"No valid transaction rows found in {filename}.")
+    if st.session_state.get("last_uploaded") != file_key:
+        try:
+            res = bg_processor.process_document(file_bytes, filename=uploaded_file.name)
+            txs = res["transactions"]
+            stats = res["stats"]
+
+            if txs:
+                if st.session_state.get("using_demo", True):
+                    db.clear_all()
+                    st.session_state["using_demo"] = False
+
+                db.insert_transactions(txs)
+                st.session_state["last_uploaded"] = file_key
+                st.session_state["last_stats"] = stats
+                st.sidebar.success(f"Successfully processed {stats.total_transactions} records!")
+            else:
+                msg = stats.message if stats and stats.message else f"No valid transaction rows found in {uploaded_file.name}."
+                st.sidebar.error(msg)
+        except Exception as e:
+            st.sidebar.error(f"Failed to process document: {str(e)}")
+
+# Render Sidebar Stats Expander if available
+if st.session_state.get("last_stats"):
+    stats = st.session_state["last_stats"]
+    with st.sidebar.expander("📊 Document Analytics & Health Stats", expanded=True):
+        st.markdown(f"**Format**: `{stats.file_format}` | **Confidence**: `{stats.parsing_confidence_pct}%`")
+        st.markdown(f"**Date Range**: `{stats.date_range_start}` to `{stats.date_range_end}`")
+        st.markdown(f"**Gross Inflow**: +${stats.gross_income:,.2f}")
+        st.markdown(f"**Gross Outflow**: -${stats.gross_expenses:,.2f}")
+        st.markdown(f"**Net Impact**: ${stats.net_cash_flow:,.2f}")
+        st.markdown(f"**Top Category**: {stats.top_category} (${stats.top_category_amount:,.2f})")
+        st.markdown(f"**Top Vendor**: {stats.top_vendor} (${stats.top_vendor_amount:,.2f})")
+        st.markdown(f"**Detected**: 🔄 {stats.subscriptions_detected} Subs | 🚩 {stats.anomalies_detected} Outliers")
 
 st.sidebar.markdown("---")
 col_s1, col_s2 = st.sidebar.columns(2)
 with col_s1:
     if st.button("🔄 Reload Demo", help="Reset database with standard demo financial data"):
         seed_demo_database(db)
+        st.session_state["last_uploaded"] = None
+        st.session_state["last_stats"] = None
+        st.session_state["using_demo"] = True
+        st.session_state["uploader_key"] += 1
         st.rerun()
 with col_s2:
-    if st.button("🗑️ Clear All", help="Clear all stored transactions"):
+    if st.button("🗑️ Clear All", help="Clear all stored transactions, budgets, and goals"):
         db.clear_all()
+        st.session_state["last_uploaded"] = None
+        st.session_state["last_stats"] = None
+        st.session_state["using_demo"] = False
+        st.session_state["uploader_key"] += 1
         st.rerun()
 
 st.sidebar.markdown("---")
-st.sidebar.info("📌 **Guardrail Enforced**: All financial arithmetic is calculated deterministically via DuckDB SQL & Python execution prior to agent output.")
+st.sidebar.info("📌 **Guardrail Enforced**: All financial arithmetic is calculated deterministically prior to presentation.")
 
 # Navigation Tabs
 tab_overview, tab_txs, tab_anom, tab_goals, tab_chat = st.tabs([
@@ -192,7 +227,10 @@ with tab_overview:
         st.markdown(f"**Period**: {brief.get('period', 'N/A')}")
         
         for step in brief.get('next_steps', []):
-            st.warning(f"💡 {step}") if "Warning" in step or "Exceeded" in step else st.info(f"💡 {step}")
+            if "Warning" in step or "Exceeded" in step:
+                st.warning(f"💡 {step}")
+            else:
+                st.info(f"💡 {step}")
 
 # -----------------------------------------------------------------------------
 # TAB 2: TRANSACTIONS & INGESTION
@@ -217,9 +255,10 @@ with tab_txs:
         if selected_cat != "All":
             filtered_df = filtered_df[filtered_df['category'] == selected_cat]
         if search_query:
+            # Avoid regex errors when users enter special characters like '(', '*', 'SQUARE *'
             filtered_df = filtered_df[
-                filtered_df['raw_vendor'].str.contains(search_query, case=False) |
-                filtered_df['normalized_vendor'].str.contains(search_query, case=False)
+                filtered_df['raw_vendor'].astype(str).str.contains(search_query, case=False, regex=False, na=False) |
+                filtered_df['normalized_vendor'].astype(str).str.contains(search_query, case=False, regex=False, na=False)
             ]
 
         if sort_by == "Date (Latest)":
@@ -274,8 +313,10 @@ with tab_anom:
             anomalies = AnomalyDetector.detect_anomalies(df)
             if anomalies:
                 for a in anomalies:
-                    severity_color = "red" if a.severity == "HIGH" else "orange"
-                    st.error(f"**[{a.severity}] {a.vendor} ({a.category})**\n\n{a.reason}")
+                    if a.severity == "HIGH":
+                        st.error(f"**[HIGH] {a.vendor} ({a.category})**\n\n{a.reason}")
+                    else:
+                        st.warning(f"**[{a.severity}] {a.vendor} ({a.category})**\n\n{a.reason}")
             else:
                 st.success("No standard deviation outliers (>2.5x) or MoM spending spikes (>20%) detected.")
 
@@ -305,13 +346,21 @@ with tab_goals:
 
     with col_g:
         st.subheader("🚀 Interactive Savings Goal Simulator")
-        if goals:
-            inc = df[df['amount'] > 0]['amount'].sum() if not df.empty else 4500.0
-            exp = abs(df[df['amount'] < 0]['amount'].sum()) if not df.empty else 3200.0
-            months_cnt = max(1, pd.to_datetime(df['date']).dt.to_period('M').nunique()) if not df.empty else 1
-            net_cf = (inc - exp) / months_cnt
+        if df.empty:
+            st.info("Upload a statement to simulate goals.")
+        elif goals:
+            dt = pd.to_datetime(df['date'])
+            days_span = max(1, (dt.max() - dt.min()).days + 1)
+            months_cnt = max(1.0, days_span / 30.4375)
 
-            st.caption(f"Current Monthly Net Cash Flow: **${net_cf:,.2f}** (Income ${inc/months_cnt:,.2f} - Expenses ${exp/months_cnt:,.2f})")
+            inc = float(df[df['amount'] > 0]['amount'].sum()) if not df[df['amount'] > 0].empty else 0.0
+            exp = float(abs(df[df['amount'] < 0]['amount'].sum())) if not df[df['amount'] < 0].empty else 0.0
+
+            monthly_inc = inc / months_cnt
+            monthly_exp = exp / months_cnt
+            net_cf = monthly_inc - monthly_exp
+
+            st.caption(f"Estimated Monthly Net Cash Flow: **${net_cf:,.2f}** (Avg Income ${monthly_inc:,.2f} - Avg Expenses ${monthly_exp:,.2f} over {days_span} days)")
 
             # What-If Slider
             extra_savings = st.slider(
@@ -329,8 +378,11 @@ with tab_goals:
                 
                 st.markdown(f"- Target Amount: **${g.target_amount:,.2f}** | Saved: **${g.current_amount:,.2f}**")
                 st.markdown(f"- Remaining: **${sim['remaining_amount']:,.2f}**")
-                st.markdown(f"- Projected Completion: **{sim['months_to_target']} months** ({sim['projected_completion_date']})")
-                st.info(sim['notes'])
+                if sim['is_feasible']:
+                    st.markdown(f"- Projected Completion: **{sim['months_to_target']} months** ({sim['projected_completion_date']})")
+                    st.info(sim['notes'])
+                else:
+                    st.warning(f"Goal cannot be reached at the current cash flow. ({sim['notes']})")
                 st.markdown("---")
         else:
             st.write("No goals set.")
