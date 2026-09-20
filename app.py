@@ -52,8 +52,8 @@ def fmt_money(val: float, currency: str = None) -> str:
         return f"-{currency}{abs(v):,.2f}"
     return f"{currency}{v:,.2f}"
 
-# Render Left Sidebar Navigation Rail
-active_page = render_sidebar_navigation()
+# Render Left Sidebar Navigation Rail with File Uploader
+active_page = render_sidebar_navigation(db)
 
 # Settings Submenu in Sidebar
 with st.sidebar.expander("⚙ Currency & Preferences", expanded=False):

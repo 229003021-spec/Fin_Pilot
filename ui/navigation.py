@@ -1,6 +1,6 @@
 import streamlit as st
 
-def render_sidebar_navigation() -> str:
+def render_sidebar_navigation(db=None) -> str:
     """Renders the persistent left navigation rail and returns the active page name."""
     if "fp_active_page" not in st.session_state:
         st.session_state["fp_active_page"] = "Command Center"
@@ -39,6 +39,47 @@ def render_sidebar_navigation() -> str:
 
     st.sidebar.markdown("---")
     
+    # Data Ingestion File Uploader in Sidebar
+    st.sidebar.caption("📥 DATA INGESTION")
+
+    uploaded_file = st.sidebar.file_uploader(
+        "Upload Bank/Credit Statement",
+        type=["csv", "json", "pdf"],
+        key=f"sidebar_uploader_{st.session_state.get('uploader_key', 0)}",
+        help="Supports CSV statements, JSON exports, and PDF bank statements."
+    )
+
+    if uploaded_file is not None and db is not None:
+        file_bytes = uploaded_file.getvalue()
+        file_size = len(file_bytes)
+        file_key = f"{uploaded_file.name}:{file_size}"
+
+        if st.session_state.get("last_uploaded") != file_key:
+            try:
+                from finpilot.ingestion.processor import BackgroundDocumentProcessor
+                bg_processor = BackgroundDocumentProcessor()
+                res = bg_processor.process_document(file_bytes, filename=uploaded_file.name)
+                txs = res["transactions"]
+                stats = res["stats"]
+
+                if txs:
+                    if st.session_state.get("using_demo", True):
+                        db.clear_all()
+                        st.session_state["using_demo"] = False
+
+                    db.insert_transactions(txs)
+                    st.session_state["last_uploaded"] = file_key
+                    st.session_state["last_stats"] = stats
+                    st.sidebar.success(f"Successfully processed {stats.total_transactions} records!")
+                    st.rerun()
+                else:
+                    msg = stats.message if stats and stats.message else f"No valid transaction rows identified."
+                    st.sidebar.error(msg)
+            except Exception as e:
+                st.sidebar.error(f"Failed to process document: {str(e)}")
+
+    st.sidebar.markdown("---")
+
     # Session mode indicator
     if st.session_state.get("using_demo", True):
         st.sidebar.info("ℹ️ **Data Mode**: Using demo data")
