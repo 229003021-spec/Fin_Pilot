@@ -154,4 +154,21 @@ def test_duplicate_upload_prevention_and_clear_all():
     assert len(db.get_goals()) == 0
 
 
+def test_ai_agent_parser():
+    from finpilot.ingestion.ai_agent_parser import AIAgentParser
+    raw_text = """
+    STATEMENT PERIOD: AUGUST 2026
+    Aug 01, 2026 DIRECT DEPOSIT TECH CORP $2,500.00
+    Aug 02, 2026 AVALON APTS RENT - $1,450.00
+    Aug 05, 2026 NETFLIX DIGITAL SUB - $19.99
+    """
+    parser = AIAgentParser()
+    txs = parser.parse_raw_text(raw_text, filename="unstructured.txt")
+    assert len(txs) == 3
+    assert txs[0].amount == 2500.00
+    assert txs[1].amount == -1450.00
+    assert txs[2].category == TransactionCategory.SUBSCRIPTIONS.value
+
+
+
 

@@ -3,10 +3,12 @@ import io
 import pandas as pd
 from typing import List, Dict, Any, Union, BinaryIO, Optional
 from pydantic import BaseModel
+from pypdf import PdfReader
 from finpilot.models import Transaction
 from finpilot.ingestion.csv_parser import CSVStatementParser
 from finpilot.ingestion.json_parser import JSONStatementParser
 from finpilot.ingestion.pdf_parser import PDFStatementParser
+from finpilot.ingestion.ai_agent_parser import AIAgentParser
 from finpilot.analytics.subscriptions import SubscriptionTracker
 from finpilot.analytics.anomalies import AnomalyDetector
 
@@ -42,6 +44,7 @@ class BackgroundDocumentProcessor:
         self.csv_parser = CSVStatementParser()
         self.json_parser = JSONStatementParser()
         self.pdf_parser = PDFStatementParser()
+        self.ai_agent = AIAgentParser()
 
     def process_document(self, file_source: Union[str, BinaryIO, bytes], filename: str) -> Dict[str, Any]:
         """
@@ -79,29 +82,42 @@ class BackgroundDocumentProcessor:
                         file_format = "PDF"
                     except Exception:
                         transactions = []
-        except Exception as e:
-            return {
-                "transactions": [],
-                "stats": DocumentStats(
-                    filename=filename,
-                    file_format=file_format,
-                    total_transactions=0,
-                    date_range_start="N/A",
-                    date_range_end="N/A",
-                    gross_income=0.0,
-                    gross_expenses=0.0,
-                    net_cash_flow=0.0,
-                    top_category="N/A",
-                    top_category_amount=0.0,
-                    top_vendor="N/A",
-                    top_vendor_amount=0.0,
-                    subscriptions_detected=0,
-                    anomalies_detected=0,
-                    parsing_confidence_pct=0.0,
-                    status="ERROR",
-                    message=f"Failed to process document: {str(e)}"
-                )
-            }
+        except Exception:
+            transactions = []
+
+        # If primary parsing produced 0 transactions, trigger AI Agent fallback ingestion
+        if not transactions:
+            try:
+                raw_text = ""
+                if hasattr(file_source, 'seek'):
+                    file_source.seek(0)
+
+                if ext == ".pdf":
+                    reader = PdfReader(file_source)
+                    for page in reader.pages:
+                        t = page.extract_text()
+                        if t:
+                            raw_text += t + "\n"
+                else:
+                    if hasattr(file_source, 'read'):
+                        content = file_source.read()
+                        if isinstance(content, bytes):
+                            raw_text = content.decode('utf-8', errors='ignore')
+                        else:
+                            raw_text = str(content)
+                    elif isinstance(file_source, bytes):
+                        raw_text = file_source.decode('utf-8', errors='ignore')
+                    elif isinstance(file_source, str):
+                        if os.path.exists(file_source):
+                            with open(file_source, 'r', encoding='utf-8', errors='ignore') as f:
+                                raw_text = f.read()
+                        else:
+                            raw_text = file_source
+
+                if raw_text:
+                    transactions = self.ai_agent.parse_raw_text(raw_text, filename=filename)
+            except Exception:
+                transactions = []
 
         if not transactions:
             return {

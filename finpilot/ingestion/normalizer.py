@@ -94,7 +94,7 @@ class SchemaNormalizer:
             num = float(val)
         else:
             # Clean string
-            s = str(val).replace('$', '').replace(',', '').strip()
+            s = str(val).replace('$', '').replace(',', '').replace(' ', '').strip()
             # Handle parenthesized negative amounts: (100.00) -> -100.00
             if s.startswith('(') and s.endswith(')'):
                 s = '-' + s[1:-1]

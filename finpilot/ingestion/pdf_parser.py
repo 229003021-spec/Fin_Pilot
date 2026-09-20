@@ -72,9 +72,11 @@ class PDFStatementParser:
 
         # 2. Regex patterns
         date_pattern = r'(\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s*\d{0,4})'
-        amt_token_pattern = r'([+-]?\$?\s*[\d,]+\.\d{2}\b|\(\$?[\d,]+\.\d{2}\)|-)'
+        curr_pattern = r'([+-]?\$[\d,]+\.\d{2}\b|[+-]?[\d,]+\.\d{2}\b|\(\$?[\d,]+\.\d{2}\))'
+        amt_token_pattern = r'([+-]?\$[\d,]+\.\d{2}\b|[+-]?[\d,]+\.\d{2}\b|\(\$?[\d,]+\.\d{2}\)|(?<=\s)-(?=\s|$))'
 
         line_regex = re.compile(f'^{date_pattern}\\s+(.*)', re.IGNORECASE)
+        curr_regex = re.compile(curr_pattern)
         token_regex = re.compile(amt_token_pattern)
 
         transactions = []
@@ -89,27 +91,40 @@ class PDFStatementParser:
             if "beginning balance" in rest.lower() or "ending balance" in rest.lower():
                 continue
 
-            # Extract amount and dash tokens
-            matches = list(token_regex.finditer(rest))
-            if not matches:
+            curr_matches = list(curr_regex.finditer(rest))
+            if not curr_matches:
                 continue
 
-            first_match_idx = matches[0].start()
-            vendor_part = rest[:first_match_idx].strip()
-            tokens = [m.group(1).strip() for m in matches]
+            first_curr_idx = curr_matches[0].start()
+            prefix_before_curr = rest[:first_curr_idx]
+            dash_match = re.search(r'\s-\s*$', prefix_before_curr)
+            if dash_match:
+                amt_start_idx = dash_match.start()
+            else:
+                amt_start_idx = first_curr_idx
+
+            vendor_part = rest[:amt_start_idx].strip()
+            amount_block = rest[amt_start_idx:].strip()
+
+            tokens = [m.group(1).strip() for m in token_regex.finditer(amount_block)]
+            if not tokens:
+                continue
 
             amount = 0.0
             # Check 2-column withdrawal/deposit format (e.g., Description [Withdrawal] [Deposit] [Balance])
-            if len(tokens) >= 3 and tokens[-1].startswith("$"):
+            if len(tokens) >= 3 and (tokens[-1].startswith("$") or re.search(r'\d+\.\d{2}$', tokens[-1])):
                 wd_str = tokens[-3]
                 dp_str = tokens[-2]
 
-                if wd_str != "-" and wd_str != "$0.00":
+                if wd_str != "-" and wd_str != "$0.00" and wd_str != "0.00":
                     amount = -abs(SchemaNormalizer.normalize_amount(wd_str))
-                elif dp_str != "-" and dp_str != "$0.00":
+                elif dp_str != "-" and dp_str != "$0.00" and dp_str != "0.00":
                     amount = abs(SchemaNormalizer.normalize_amount(dp_str))
+            elif len(tokens) == 2 and (tokens[-1].startswith("$") or re.search(r'\d+\.\d{2}$', tokens[-1])):
+                amt_str = tokens[0]
+                if amt_str != "-":
+                    amount = SchemaNormalizer.normalize_amount(amt_str)
             else:
-                # Single signed/unsigned amount format
                 raw_amt_str = tokens[0]
                 if raw_amt_str != "-":
                     amount = SchemaNormalizer.normalize_amount(raw_amt_str)
