@@ -92,24 +92,29 @@ def seed_demo_database(db: FinPilotDB):
 
 
 def export_sample_files(output_dir: str = "."):
-    """Exports sample CSV and JSON files for manual testing upload in the UI."""
+    """Exports sample CSV and JSON files if missing from disk."""
+    csv_path = os.path.join(output_dir, "sample_bank_statement.csv")
+    json_path = os.path.join(output_dir, "sample_credit_statement.json")
+
+    if os.path.exists(csv_path) and os.path.exists(json_path):
+        return
+
     os.makedirs(output_dir, exist_ok=True)
-    
     txs = generate_sample_transactions()
     
-    # Export CSV
-    csv_data = [
-        {
-            "Date": t.date,
-            "Description": t.raw_vendor,
-            "Amount": t.amount,
-            "Category": t.category
-        }
-        for t in txs
-    ]
-    pd.DataFrame(csv_data).to_csv(os.path.join(output_dir, "sample_bank_statement.csv"), index=False)
+    if not os.path.exists(csv_path):
+        csv_data = [
+            {
+                "Date": t.date,
+                "Description": t.raw_vendor,
+                "Amount": t.amount,
+                "Category": t.category
+            }
+            for t in txs
+        ]
+        pd.DataFrame(csv_data).to_csv(csv_path, index=False)
     
-    # Export JSON
-    json_data = [t.model_dump() for t in txs]
-    with open(os.path.join(output_dir, "sample_credit_statement.json"), "w") as f:
-        json.dump({"Transaction": json_data}, f, indent=2)
+    if not os.path.exists(json_path):
+        json_data = [t.model_dump() for t in txs]
+        with open(json_path, "w") as f:
+            json.dump({"Transaction": json_data}, f, indent=2)

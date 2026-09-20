@@ -61,19 +61,34 @@ class MonthlyBriefGenerator:
         # Next Steps / Recommendations
         next_steps = []
         if net_cash_flow > 0:
-            next_steps.append(f"Allocation Opportunity: You have a positive net cash flow of ${net_cash_flow:,.2f} this month. Consider routing 50% toward active savings goals.")
+            next_steps.append({
+                "text": f"Allocation Opportunity: You have a positive net cash flow of ${net_cash_flow:,.2f} this month. Consider routing 50% toward active savings goals.",
+                "severity": "info"
+            })
         else:
-            next_steps.append(f"Cash Flow Warning: Expenses (${expenses:,.2f}) exceeded income (${income:,.2f}) by ${abs(net_cash_flow):,.2f}. Review variable discretionary categories.")
+            next_steps.append({
+                "text": f"Cash Flow Warning: Expenses (${expenses:,.2f}) exceeded income (${income:,.2f}) by ${abs(net_cash_flow):,.2f}. Review variable discretionary categories.",
+                "severity": "warning"
+            })
 
         if committed_res['committed_spend_ratio_pct'] > 50.0:
-            next_steps.append(f"High Committed Obligations: Fixed spend accounts for {committed_res['committed_spend_ratio_pct']}% of income. Target subscription pruning or utility efficiency.")
+            next_steps.append({
+                "text": f"High Committed Obligations: Fixed spend accounts for {committed_res['committed_spend_ratio_pct']}% of income. Target subscription pruning or utility efficiency.",
+                "severity": "warning"
+            })
 
         for b in budget_variance:
             if b['status'] == "EXCEEDED":
-                next_steps.append(f"Budget Exceeded: Category '{b['category']}' spent ${b['spent']:,.2f} vs limit ${b['allocated_limit']:,.2f} ({b['pct_used']}% used).")
+                next_steps.append({
+                    "text": f"Budget Exceeded: Category '{b['category']}' spent ${b['spent']:,.2f} vs limit ${b['allocated_limit']:,.2f} ({b['pct_used']}% used).",
+                    "severity": "warning"
+                })
 
         if anomalies:
-            next_steps.append(f"Anomaly Review: {len(anomalies)} spending anomaly/spike flags detected. Inspect flagged transactions.")
+            next_steps.append({
+                "text": f"Anomaly Review: {len(anomalies)} spending anomaly/spike flags detected. Inspect flagged transactions.",
+                "severity": "warning"
+            })
 
         return {
             "title": f"FinPilot Executive Brief - {latest_month}",

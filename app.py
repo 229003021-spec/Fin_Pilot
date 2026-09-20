@@ -253,10 +253,17 @@ with tab_overview:
         st.markdown(f"**Period**: {brief.get('period', 'N/A')}")
         
         for step in brief.get('next_steps', []):
-            if "Warning" in step or "Exceeded" in step:
-                st.warning(f"💡 {step}")
+            if isinstance(step, dict):
+                text = step.get('text', '')
+                sev = step.get('severity', 'info')
             else:
-                st.info(f"💡 {step}")
+                text = str(step)
+                sev = 'warning' if ('Warning' in text or 'Exceeded' in text) else 'info'
+
+            if sev == 'warning':
+                st.warning(f"💡 {text}")
+            else:
+                st.info(f"💡 {text}")
 
 # -----------------------------------------------------------------------------
 # TAB 2: TRANSACTIONS & INGESTION

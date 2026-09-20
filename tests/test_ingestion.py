@@ -69,7 +69,7 @@ def test_json_parser():
 def test_pdf_parser_demo_statement():
     import os
     from finpilot.ingestion.pdf_parser import PDFStatementParser
-    pdf_path = "Demo Bank Statement (1).pdf"
+    pdf_path = "demo_bank_statement.pdf"
     if os.path.exists(pdf_path):
         parser = PDFStatementParser()
         txs = parser.parse(pdf_path, filename=pdf_path)
@@ -81,7 +81,7 @@ def test_pdf_parser_demo_statement():
 def test_background_document_processor():
     import os
     from finpilot.ingestion.processor import BackgroundDocumentProcessor
-    pdf_path = "Demo Bank Statement (1).pdf"
+    pdf_path = "demo_bank_statement.pdf"
     if os.path.exists(pdf_path):
         proc = BackgroundDocumentProcessor()
         res = proc.process_document(pdf_path, filename=pdf_path)
