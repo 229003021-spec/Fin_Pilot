@@ -39,10 +39,13 @@ class SubscriptionTracker:
             amounts = group_sorted['abs_amount'].tolist()
 
             # Calculate date intervals (days between consecutive transactions)
-            intervals = [(dates[i] - dates[i-1]).days for i in range(1, len(dates))]
-            avg_interval = float(np.mean(intervals))
+            raw_intervals = [(dates[i] - dates[i-1]).days for i in range(1, len(dates))]
+            positive_intervals = [d for d in raw_intervals if d > 0]
+            if not positive_intervals:
+                continue
+            avg_interval = float(np.mean(positive_intervals))
 
-            # Calculate price variance: (max - min) / mean or std / mean
+            # Calculate price variance
             mean_amt = float(np.mean(amounts))
             if mean_amt == 0:
                 continue

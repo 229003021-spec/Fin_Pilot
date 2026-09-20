@@ -99,11 +99,13 @@ class AnomalyDetector:
                 prev_spend = prev_cat_df.get(cat, 0.0)
 
                 if prev_spend > 0:
-                    pct_increase = ((curr_spend - prev_spend) / prev_spend) * 100.0
-                    if pct_increase > 20.0:
+                    dollar_diff = curr_spend - prev_spend
+                    pct_increase = (dollar_diff / prev_spend) * 100.0
+                    # Must be >20% MoM increase AND at least $25.00 dollar increase to prevent false positives on small transactions
+                    if pct_increase > 20.0 and dollar_diff >= 25.0:
                         reason = (
                             f"Category spending for '{cat}' in {latest_month} (${curr_spend:.2f}) "
-                            f"increased by {pct_increase:.1f}% compared to {prev_month} (${prev_spend:.2f})."
+                            f"increased by {pct_increase:.1f}% (+${dollar_diff:.2f}) compared to {prev_month} (${prev_spend:.2f})."
                         )
                         anomalies.append(AnomalyFlag(
                             transaction_id=f"mom_spike_{cat}_{latest_month}",

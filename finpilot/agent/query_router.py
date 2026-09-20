@@ -34,16 +34,34 @@ class NLQueryRouter:
 
         # Query 1: Spending breakdown / Where did I spend the most?
         if any(w in q for w in ["where did i spend", "most spend", "top category", "highest category", "top spending", "expense breakdown"]):
-            sql = """
-                SELECT category, 
-                       ROUND(SUM(ABS(amount)), 2) AS total_spent,
-                       COUNT(*) AS transaction_count,
-                       ROUND(AVG(ABS(amount)), 2) AS avg_transaction
-                FROM transactions
-                WHERE amount < 0
-                GROUP BY category
-                ORDER BY total_spent DESC
-            """
+            latest_m_df = self.db.run_query("SELECT MAX(SUBSTR(date, 1, 7)) as m FROM transactions")
+            latest_month = latest_m_df.iloc[0]['m'] if not latest_m_df.empty and pd.notna(latest_m_df.iloc[0]['m']) else None
+
+            if latest_month and "this month" in q:
+                sql = f"""
+                    SELECT category, 
+                           ROUND(SUM(ABS(amount)), 2) AS total_spent,
+                           COUNT(*) AS transaction_count,
+                           ROUND(AVG(ABS(amount)), 2) AS avg_transaction
+                    FROM transactions
+                    WHERE amount < 0 AND SUBSTR(date, 1, 7) = '{latest_month}'
+                    GROUP BY category
+                    ORDER BY total_spent DESC
+                """
+                month_label = f"in **{latest_month}** (latest month present in data)"
+            else:
+                sql = """
+                    SELECT category, 
+                           ROUND(SUM(ABS(amount)), 2) AS total_spent,
+                           COUNT(*) AS transaction_count,
+                           ROUND(AVG(ABS(amount)), 2) AS avg_transaction
+                    FROM transactions
+                    WHERE amount < 0
+                    GROUP BY category
+                    ORDER BY total_spent DESC
+                """
+                month_label = "across all recorded transactions"
+
             result_df = self.db.run_query(sql)
             if not result_df.empty:
                 top_cat = result_df.iloc[0]['category']
@@ -52,8 +70,8 @@ class NLQueryRouter:
                 pct = (top_amt / total_all * 100.0) if total_all > 0 else 0
                 
                 answer = (
-                    f"You spent the most in **{top_cat}** totaling **${top_amt:,.2f}** "
-                    f"({pct:.1f}% of total expenses ${total_all:,.2f})."
+                    f"You spent the most {month_label} in **{top_cat}** totaling **${top_amt:,.2f}** "
+                    f"({pct:.1f}% of expenses ${total_all:,.2f})."
                 )
             else:
                 answer = "No expense transactions recorded."
