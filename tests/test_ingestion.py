@@ -64,3 +64,16 @@ def test_json_parser():
     assert len(txs) == 2
     assert txs[0].amount == 4500.00
     assert txs[1].category == "Subscriptions"
+
+
+def test_pdf_parser_demo_statement():
+    import os
+    from finpilot.ingestion.pdf_parser import PDFStatementParser
+    pdf_path = "Demo Bank Statement (1).pdf"
+    if os.path.exists(pdf_path):
+        parser = PDFStatementParser()
+        txs = parser.parse(pdf_path, filename=pdf_path)
+        assert len(txs) == 15
+        assert txs[0].amount == 2500.00
+        assert txs[1].amount == -1450.00
+
